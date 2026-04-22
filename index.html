@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aix-en-Provence — Weather & Air Quality</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="container">
+  <header>
+    <div>
+      <h1>Aix-en-Provence</h1>
+      <p class="subtitle" id="date-line">—</p>
+    </div>
+    <div class="sun-times">
+      <span id="sunrise">—</span>
+      <span id="sunset">—</span>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- CURRENT WEATHER -->
+    <section class="card current-weather">
+      <div class="card-label">Right Now</div>
+      <div class="cw-main">
+        <span class="cw-icon" id="cw-icon">—</span>
+        <span class="cw-temp" id="cw-temp">—</span>
+      </div>
+      <div class="cw-desc" id="cw-desc">—</div>
+      <div class="cw-details">
+        <div class="cw-detail">
+          <span class="cw-detail-label">Humidity</span>
+          <span class="cw-detail-value" id="cw-humidity">—</span>
+        </div>
+        <div class="cw-detail">
+          <span class="cw-detail-label">Wind</span>
+          <span class="cw-detail-value" id="cw-wind">—</span>
+        </div>
+        <div class="cw-detail">
+          <span class="cw-detail-label">Gusts</span>
+          <span class="cw-detail-value" id="cw-gusts">—</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- AIR QUALITY - OPEN-METEO -->
+    <section class="card aq-card">
+      <div class="card-label">Air Quality <span class="src">Open-Meteo</span></div>
+      <div class="aqi-header">
+        <span class="aqi-badge" id="aqi-badge">—</span>
+        <span class="aqi-label" id="aqi-label">—</span>
+      </div>
+      <div class="aq-pollutants" id="aq-pollutants"></div>
+      <div class="pollen-section">
+        <div class="pollen-header" id="pollen-toggle">
+          <span>Pollen</span>
+          <span class="pollen-summary" id="pollen-summary">—</span>
+          <span class="pollen-arrow" id="pollen-arrow">›</span>
+        </div>
+        <div class="pollen-details hidden" id="pollen-details"></div>
+      </div>
+    </section>
+
+    <!-- AIR QUALITY - ATMO FRANCE -->
+    <section class="card aq-card atmo-card">
+      <div class="card-label">Air Quality <span class="src">Atmo France</span></div>
+      <div class="aqi-header">
+        <span class="aqi-badge" id="atmo-badge">—</span>
+        <span class="aqi-label" id="atmo-label">—</span>
+      </div>
+      <div class="aq-pollutants" id="atmo-pollutants"></div>
+      <div class="atmo-note" id="atmo-note"></div>
+    </section>
+
+    <!-- TOMORROW -->
+    <section class="card forecast-card">
+      <div class="card-label">Tomorrow</div>
+      <div class="fc-main">
+        <span class="fc-icon" id="fc1-icon">—</span>
+        <div class="fc-temps">
+          <span class="fc-hi" id="fc1-hi">—</span>
+          <span class="fc-lo" id="fc1-lo">—</span>
+        </div>
+      </div>
+      <div class="fc-badges" id="fc1-badges"></div>
+    </section>
+
+    <!-- DAY AFTER TOMORROW -->
+    <section class="card forecast-card">
+      <div class="card-label" id="fc2-label">Day After</div>
+      <div class="fc-main">
+        <span class="fc-icon" id="fc2-icon">—</span>
+        <div class="fc-temps">
+          <span class="fc-hi" id="fc2-hi">—</span>
+          <span class="fc-lo" id="fc2-lo">—</span>
+        </div>
+      </div>
+      <div class="fc-badges" id="fc2-badges"></div>
+    </section>
+
+    <!-- NEXT RAIN -->
+    <section class="card next-card">
+      <div class="card-label">Next Rain</div>
+      <div class="next-main" id="next-rain">
+        <span class="next-icon">🌧</span>
+        <span class="next-when">Checking…</span>
+      </div>
+    </section>
+
+    <!-- NEXT WIND -->
+    <section class="card next-card">
+      <div class="card-label">Next Strong Wind</div>
+      <div class="next-main" id="next-wind">
+        <span class="next-icon">💨</span>
+        <span class="next-when">Checking…</span>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    Data: Open-Meteo · Atmo France / AtmoSud (ODbL)
+  </footer>
+</div>
+
+<script>
+// ============ CONFIG ============
+const LAT = 43.5297, LON = 5.4474;
+const CITY_INSEE = "13001"; // Aix-en-Provence
+
+// Atmo France credentials — replace with yours after creating an account
+const ATMO_USER = "";
+const ATMO_PASS = "";
+
+// Wind thresholds (km/h gusts)
+const WIND_UNCOMFORTABLE = 50;
+const WIND_STRONG = 70;
+const WIND_VIOLENT = 90;
+
+// ============ WMO WEATHER CODES ============
+const WMO = {
+  0: ["Clear sky", "☀️"],
+  1: ["Mainly clear", "🌤️"], 2: ["Partly cloudy", "⛅"], 3: ["Overcast", "☁️"],
+  45: ["Fog", "🌫️"], 48: ["Rime fog", "🌫️"],
+  51: ["Light drizzle", "🌦️"], 53: ["Drizzle", "🌦️"], 55: ["Dense drizzle", "🌧️"],
+  56: ["Freezing drizzle", "🌧️"], 57: ["Heavy freezing drizzle", "🌧️"],
+  61: ["Light rain", "🌦️"], 63: ["Rain", "🌧️"], 65: ["Heavy rain", "🌧️"],
+  66: ["Freezing rain", "🌧️"], 67: ["Heavy freezing rain", "🌧️"],
+  71: ["Light snow", "🌨️"], 73: ["Snow", "🌨️"], 75: ["Heavy snow", "🌨️"],
+  77: ["Snow grains", "🌨️"],
+  80: ["Light showers", "🌦️"], 81: ["Showers", "🌧️"], 82: ["Heavy showers", "🌧️"],
+  85: ["Light snow showers", "🌨️"], 86: ["Snow showers", "🌨️"],
+  95: ["Thunderstorm", "⛈️"], 96: ["Thunderstorm + hail", "⛈️"], 99: ["Severe thunderstorm", "⛈️"]
+};
+function wmoDesc(c) { return (WMO[c] || ["Unknown","❓"])[0]; }
+function wmoIcon(c) { return (WMO[c] || ["","❓"])[1]; }
+
+// ============ RAG HELPERS ============
+function eaqiLevel(v) {
+  if (v <= 20) return { label: "Good", cls: "rag-green" };
+  if (v <= 40) return { label: "Fair", cls: "rag-lime" };
+  if (v <= 60) return { label: "Moderate", cls: "rag-yellow" };
+  if (v <= 80) return { label: "Poor", cls: "rag-orange" };
+  if (v <= 100) return { label: "Very Poor", cls: "rag-red" };
+  return { label: "Hazardous", cls: "rag-purple" };
+}
+function atmoLevel(v) {
+  const map = {
+    1: { label: "Bon", cls: "rag-green" },
+    2: { label: "Moyen", cls: "rag-lime" },
+    3: { label: "Dégradé", cls: "rag-yellow" },
+    4: { label: "Mauvais", cls: "rag-orange" },
+    5: { label: "Très mauvais", cls: "rag-red" },
+    6: { label: "Extrêmement mauvais", cls: "rag-purple" },
+    0: { label: "Indisponible", cls: "rag-grey" }
+  };
+  return map[v] || map[0];
+}
+function pollutantRAG(name, v) {
+  // Simplified EU thresholds (µg/m³)
+  const t = { pm2_5:[10,20,25,50], pm10:[20,40,50,100], nitrogen_dioxide:[40,90,120,230], ozone:[50,100,130,240], sulphur_dioxide:[100,200,350,500] };
+  const th = t[name] || [20,40,80,100];
+  if (v <= th[0]) return "rag-green";
+  if (v <= th[1]) return "rag-lime";
+  if (v <= th[2]) return "rag-yellow";
+  if (v <= th[3]) return "rag-orange";
+  return "rag-red";
+}
+function pollenRAG(v) {
+  if (v <= 5) return "rag-green";
+  if (v <= 20) return "rag-lime";
+  if (v <= 50) return "rag-yellow";
+  if (v <= 80) return "rag-orange";
+  return "rag-red";
+}
+function pollenLabel(v) {
+  if (v <= 5) return "Very Low";
+  if (v <= 20) return "Low";
+  if (v <= 50) return "Moderate";
+  if (v <= 80) return "High";
+  return "Very High";
+}
+function windRAG(gusts) {
+  if (gusts < 30) return "rag-green";
+  if (gusts < WIND_UNCOMFORTABLE) return "rag-lime";
+  if (gusts < WIND_STRONG) return "rag-orange";
+  if (gusts < WIND_VIOLENT) return "rag-red";
+  return "rag-purple";
+}
+function degToCompass(d) {
+  const dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+  return dirs[Math.round(d / 22.5) % 16];
+}
+
+// ============ FETCH & RENDER ============
+async function init() {
+  const now = new Date();
+  document.getElementById("date-line").textContent = now.toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
+
+  const [weather, airQuality] = await Promise.all([fetchWeather(), fetchAirQuality()]);
+  if (weather) renderWeather(weather);
+  if (airQuality) renderAirQuality(airQuality);
+  if (ATMO_USER && ATMO_PASS) fetchAtmo();
+  else document.getElementById("atmo-note").textContent = "Set ATMO_USER & ATMO_PASS in index.html to enable.";
+}
+
+async function fetchWeather() {
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m&hourly=temperature_2m,precipitation,precipitation_probability,weather_code,wind_speed_10m,wind_gusts_10m&daily=temperature_2m_max,temperature_2m_min,weather_code,sunrise,sunset,precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max&timezone=Europe/Paris&forecast_days=7`;
+    const r = await fetch(url);
+    return await r.json();
+  } catch (e) { console.error(e); return null; }
+}
+
+async function fetchAirQuality() {
+  try {
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${LAT}&longitude=${LON}&current=european_aqi,pm10,pm2_5,nitrogen_dioxide,ozone,sulphur_dioxide&hourly=european_aqi,alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=Europe/Paris`;
+    const r = await fetch(url);
+    return await r.json();
+  } catch (e) { console.error(e); return null; }
+}
+
+async function fetchAtmo() {
+  try {
+    // Login
+    const lr = await fetch("https://admindata.atmo-france.org/api/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: ATMO_USER, password: ATMO_PASS })
+    });
+    const ld = await lr.json();
+    const token = ld.token;
+    if (!token) { document.getElementById("atmo-note").textContent = "Login failed — check credentials."; return; }
+
+    // Fetch today's ATMO index
+    const today = new Date().toISOString().slice(0, 10);
+    const filter = JSON.stringify({ code_zone: { operator: "=", value: CITY_INSEE }, date_ech: { operator: "=", value: today } });
+    const dr = await fetch(`https://admindata.atmo-france.org/api/data/112/${encodeURIComponent(filter)}?withGeom=false`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const dd = await dr.json();
+    renderAtmo(dd);
+  } catch (e) {
+    console.error("Atmo France error:", e);
+    document.getElementById("atmo-note").textContent = "Could not reach Atmo France API (may be a CORS issue).";
+  }
+}
+
+// ============ RENDER WEATHER ============
+function renderWeather(d) {
+  const c = d.current;
+  document.getElementById("cw-icon").textContent = wmoIcon(c.weather_code);
+  document.getElementById("cw-temp").textContent = Math.round(c.temperature_2m) + "°";
+  document.getElementById("cw-desc").textContent = wmoDesc(c.weather_code);
+  document.getElementById("cw-humidity").textContent = c.relative_humidity_2m + "%";
+  document.getElementById("cw-wind").textContent = Math.round(c.wind_speed_10m) + " km/h " + degToCompass(c.wind_direction_10m);
+  const gustEl = document.getElementById("cw-gusts");
+  gustEl.textContent = Math.round(c.wind_gusts_10m) + " km/h";
+  if (c.wind_gusts_10m >= WIND_UNCOMFORTABLE) gustEl.classList.add("gusty");
+
+  // Sunrise/sunset
+  document.getElementById("sunrise").textContent = "☀ " + d.daily.sunrise[0].slice(11, 16);
+  document.getElementById("sunset").textContent = "☽ " + d.daily.sunset[0].slice(11, 16);
+
+  // Tomorrow (index 1) & day after (index 2)
+  [1, 2].forEach(i => {
+    const pfx = `fc${i}`;
+    document.getElementById(`${pfx}-icon`).textContent = wmoIcon(d.daily.weather_code[i]);
+    document.getElementById(`${pfx}-hi`).textContent = Math.round(d.daily.temperature_2m_max[i]) + "°";
+    document.getElementById(`${pfx}-lo`).textContent = Math.round(d.daily.temperature_2m_min[i]) + "°";
+
+    const badges = [];
+    // Rain badge
+    if (d.daily.precipitation_sum[i] > 0.2) {
+      badges.push(`<span class="badge badge-rain">🌧 ${d.daily.precipitation_sum[i].toFixed(1)} mm</span>`);
+    }
+    // Wind badge
+    const gusts = d.daily.wind_gusts_10m_max[i];
+    if (gusts >= WIND_UNCOMFORTABLE) {
+      const cls = gusts >= WIND_VIOLENT ? "badge-wind-violent" : gusts >= WIND_STRONG ? "badge-wind-strong" : "badge-wind";
+      const label = gusts >= WIND_VIOLENT ? "Violent wind" : gusts >= WIND_STRONG ? "Strong Mistral" : "Gusty";
+      badges.push(`<span class="badge ${cls}">💨 ${label} ${Math.round(gusts)} km/h</span>`);
+    }
+    document.getElementById(`${pfx}-badges`).innerHTML = badges.join("") || '<span class="badge badge-calm">Calm conditions</span>';
+
+    if (i === 2) {
+      const dt = new Date(d.daily.time[2]);
+      document.getElementById("fc2-label").textContent = dt.toLocaleDateString("en-GB", { weekday: "long" });
+    }
+  });
+
+  // Tomorrow label
+  const tmrw = new Date(d.daily.time[1]);
+  document.querySelector(".forecast-card .card-label").textContent = "Tomorrow — " + tmrw.toLocaleDateString("en-GB", { weekday: "long" });
+
+  // Next rain & next wind
+  findNextRain(d);
+  findNextWind(d);
+}
+
+function findNextRain(d) {
+  const el = document.getElementById("next-rain");
+  const now = new Date();
+  for (let i = 0; i < d.hourly.time.length; i++) {
+    const t = new Date(d.hourly.time[i]);
+    if (t <= now) continue;
+    if (d.hourly.precipitation[i] > 0.2) {
+      const dayStr = t.toLocaleDateString("en-GB", { weekday:"short", day:"numeric", month:"short" });
+      const hourStr = t.toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit" });
+      el.innerHTML = `<span class="next-icon">🌧</span><div class="next-info"><span class="next-when">${dayStr}</span><span class="next-time">${hourStr} — ${d.hourly.precipitation[i].toFixed(1)} mm/h</span></div>`;
+      return;
+    }
+  }
+  el.innerHTML = `<span class="next-icon">☀️</span><div class="next-info"><span class="next-when">No rain forecast</span><span class="next-time">Next 7 days look dry</span></div>`;
+}
+
+function findNextWind(d) {
+  const el = document.getElementById("next-wind");
+  const now = new Date();
+  for (let i = 0; i < d.hourly.time.length; i++) {
+    const t = new Date(d.hourly.time[i]);
+    if (t <= now) continue;
+    if (d.hourly.wind_gusts_10m[i] >= WIND_UNCOMFORTABLE) {
+      const gusts = d.hourly.wind_gusts_10m[i];
+      const dayStr = t.toLocaleDateString("en-GB", { weekday:"short", day:"numeric", month:"short" });
+      const hourStr = t.toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit" });
+      const rag = windRAG(gusts);
+      el.innerHTML = `<span class="next-icon">💨</span><div class="next-info"><span class="next-when">${dayStr}</span><span class="next-time">${hourStr} — gusts ${Math.round(gusts)} km/h</span><span class="dot ${rag}"></span></div>`;
+      return;
+    }
+  }
+  el.innerHTML = `<span class="next-icon">🍃</span><div class="next-info"><span class="next-when">No strong wind</span><span class="next-time">Next 7 days look calm</span></div>`;
+}
+
+// ============ RENDER AIR QUALITY ============
+function renderAirQuality(d) {
+  const aqi = d.current.european_aqi;
+  const lvl = eaqiLevel(aqi);
+  const badge = document.getElementById("aqi-badge");
+  badge.textContent = Math.round(aqi);
+  badge.className = "aqi-badge " + lvl.cls;
+  document.getElementById("aqi-label").textContent = lvl.label;
+
+  // Pollutants
+  const pollutants = [
+    { key: "pm2_5", label: "PM2.5" },
+    { key: "pm10", label: "PM10" },
+    { key: "nitrogen_dioxide", label: "NO₂" },
+    { key: "ozone", label: "O₃" },
+    { key: "sulphur_dioxide", label: "SO₂" }
+  ];
+  const container = document.getElementById("aq-pollutants");
+  container.innerHTML = pollutants.map(p => {
+    const v = d.current[p.key];
+    const cls = pollutantRAG(p.key, v);
+    return `<div class="pollutant-row"><span class="dot ${cls}"></span><span class="pollutant-name">${p.label}</span><span class="pollutant-val">${Math.round(v)} µg/m³</span></div>`;
+  }).join("");
+
+  // Pollen
+  const pollenTypes = [
+    { key: "olive_pollen", label: "Olive" },
+    { key: "grass_pollen", label: "Grass" },
+    { key: "birch_pollen", label: "Birch" },
+    { key: "alder_pollen", label: "Alder" },
+    { key: "mugwort_pollen", label: "Mugwort" },
+    { key: "ragweed_pollen", label: "Ragweed" }
+  ];
+  // Find current hour index
+  const now = new Date();
+  let hIdx = 0;
+  for (let i = 0; i < d.hourly.time.length; i++) {
+    if (new Date(d.hourly.time[i]) >= now) { hIdx = i; break; }
+  }
+  const pollenData = pollenTypes.map(p => ({
+    label: p.label,
+    value: d.hourly[p.key] ? (d.hourly[p.key][hIdx] || 0) : 0
+  })).sort((a, b) => b.value - a.value);
+
+  const maxPollen = Math.max(...pollenData.map(p => p.value));
+  const summaryLvl = pollenLabel(maxPollen);
+  const summaryRAG = pollenRAG(maxPollen);
+  document.getElementById("pollen-summary").innerHTML = `<span class="dot ${summaryRAG}"></span> ${summaryLvl}`;
+
+  const detailsEl = document.getElementById("pollen-details");
+  detailsEl.innerHTML = pollenData.map(p => {
+    const cls = pollenRAG(p.value);
+    return `<div class="pollutant-row"><span class="dot ${cls}"></span><span class="pollutant-name">${p.label}</span><span class="pollutant-val">${Math.round(p.value)} grains/m³</span></div>`;
+  }).join("");
+
+  // Toggle
+  document.getElementById("pollen-toggle").addEventListener("click", () => {
+    detailsEl.classList.toggle("hidden");
+    document.getElementById("pollen-arrow").classList.toggle("open");
+  });
+}
+
+// ============ RENDER ATMO FRANCE ============
+function renderAtmo(data) {
+  if (!data || !data.length) {
+    document.getElementById("atmo-note").textContent = "No data available for today yet (published ~13h).";
+    return;
+  }
+  const d = data[0].properties || data[0];
+  const qual = d.code_qual || 0;
+  const lvl = atmoLevel(qual);
+  const badge = document.getElementById("atmo-badge");
+  badge.textContent = qual;
+  badge.className = "aqi-badge " + lvl.cls;
+  document.getElementById("atmo-label").textContent = lvl.label;
+
+  const subs = [
+    { key: "code_no2", label: "NO₂" },
+    { key: "code_o3", label: "O₃" },
+    { key: "code_pm10", label: "PM10" },
+    { key: "code_pm25", label: "PM2.5" },
+    { key: "code_so2", label: "SO₂" }
+  ];
+  const container = document.getElementById("atmo-pollutants");
+  container.innerHTML = subs.map(s => {
+    const v = d[s.key] || 0;
+    const lvl = atmoLevel(v);
+    return `<div class="pollutant-row"><span class="dot ${lvl.cls}"></span><span class="pollutant-name">${s.label}</span><span class="pollutant-val">${lvl.label}</span></div>`;
+  }).join("");
+}
+
+init();
+</script>
+</body>
+</html>
