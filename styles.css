@@ -400,3 +400,90 @@ footer {
 .card:nth-child(5) { animation-delay: 0.24s; }
 .card:nth-child(6) { animation-delay: 0.3s; }
 .card:nth-child(7) { animation-delay: 0.36s; }
+
+/* ===== POLLEN FORECAST CARD ===== */
+.pollen-card { grid-column: 3; grid-row: 1 / 3; }
+
+.pollen-fc-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.pollen-fc-badge { font-size: 1.6rem; line-height: 1; }
+.pollen-fc-label { font-size: 1rem; font-weight: 500; }
+
+.pollen-fc-today {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+.pollen-fc-calm {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.pollen-fc-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 14px 0;
+}
+
+.pollen-fc-forecast-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-light);
+  margin-bottom: 10px;
+}
+
+.pollen-fc-forecast {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pollen-fc-day {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+.pollen-fc-day-name {
+  width: 48px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.pollen-fc-day-level {
+  font-weight: 500;
+  min-width: 60px;
+}
+.pollen-fc-day-species {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin-left: auto;
+}
+
+.pollen-fc-expand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  user-select: none;
+}
+.pollen-fc-expand:hover { color: var(--text); }
+
+@media (max-width: 800px) {
+  .pollen-card { grid-column: 1 / -1; grid-row: auto; }
+}
+@media (max-width: 520px) {
+  .pollen-card { grid-column: 1 !important; grid-row: auto !important; }
+}
