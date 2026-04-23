@@ -155,9 +155,6 @@ h1 {
 }
 
 /* ===== AIR QUALITY CARDS ===== */
-.aq-card { grid-column: 2; }
-.atmo-card { grid-column: 3; grid-row: 1 / 3; }
-
 .aqi-header {
   display: flex;
   align-items: center;
@@ -402,7 +399,14 @@ footer {
 .card:nth-child(7) { animation-delay: 0.36s; }
 
 /* ===== POLLEN FORECAST CARD ===== */
-.pollen-card { grid-column: 3; grid-row: 1 / 3; }
+.current-weather { grid-column: 1; grid-row: 1 / 3; }
+.aq-card { grid-column: 2; }
+.atmo-card { grid-column: 3; }
+.pollen-card { grid-column: 2 / 4; }
+.forecast-card:nth-of-type(5) { grid-column: 1; }
+.forecast-card:nth-of-type(6) { grid-column: 2; }
+.next-card:nth-of-type(7) { grid-column: 1; }
+.next-card:nth-of-type(8) { grid-column: 2; }
 
 .pollen-fc-header {
   display: flex;
