@@ -305,10 +305,11 @@ function renderWfsPollen(features) {
   ].sort((a, b) => b.conc - a.conc);
 
   const todayEl = document.getElementById("pollen-fc-today");
-  todayEl.innerHTML = species.map(s => {
-    const cls = atmoLevel(s.code).cls;
-    return `<div class="pollutant-row"><span class="dot ${cls}"></span><span class="pollutant-name">${s.label}</span><span class="pollutant-val">${s.conc} gr/m³</span></div>`;
-  }).join("");
+  const top3 = species.filter(s => s.conc > 0).slice(0, 3);
+todayEl.innerHTML = top3.length ? top3.map(s => {
+  const cls = atmoLevel(s.code).cls;
+  return `<div class="pollutant-row"><span class="dot ${cls}"></span><span class="pollutant-name">${s.label}</span><span class="pollutant-val">${s.conc} gr/m³</span></div>`;
+}).join("") : '<div class="pollen-fc-calm">No significant pollen detected</div>';
 
   // Forecast days
   const forecastEl = document.getElementById("pollen-fc-forecast");
@@ -332,6 +333,15 @@ function renderWfsPollen(features) {
     const cls = atmoLevel(s.code).cls;
     return `<div class="pollutant-row"><span class="dot ${cls}"></span><span class="pollutant-name">${s.label}</span><span class="pollutant-val">${s.conc} gr/m³</span></div>`;
   }).join("");
+  
+  // Re-attach toggle listener
+const toggle = document.getElementById("pollen-fc-toggle");
+const newToggle = toggle.cloneNode(true);
+toggle.parentNode.replaceChild(newToggle, toggle);
+newToggle.addEventListener("click", () => {
+  document.getElementById("pollen-fc-details").classList.toggle("hidden");
+  document.getElementById("pollen-fc-arrow").classList.toggle("open");
+});
 }
 
 // ============ RENDER WEATHER ============
