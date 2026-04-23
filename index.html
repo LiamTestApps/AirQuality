@@ -66,7 +66,7 @@
     </section>
 
     <!-- AIR QUALITY - ATMO FRANCE -->
-    <section class="card aq-card atmo-card">
+    <section class="card aq-card atmo-card" style="display:none;">
       <div class="card-label">Air Quality <span class="src">Atmo France</span></div>
       <div class="aqi-header">
         <span class="aqi-badge" id="atmo-badge">—</span>
@@ -102,6 +102,24 @@
       <div class="fc-badges" id="fc2-badges"></div>
     </section>
 
+    <!-- POLLEN FORECAST -->
+<section class="card pollen-card">
+  <div class="card-label">Pollen <span class="src">Open-Meteo</span></div>
+  <div class="pollen-fc-header">
+    <span class="pollen-fc-badge" id="pollen-fc-badge">—</span>
+    <span class="pollen-fc-label" id="pollen-fc-level">—</span>
+  </div>
+  <div class="pollen-fc-today" id="pollen-fc-today"></div>
+  <div class="pollen-fc-divider"></div>
+  <div class="pollen-fc-forecast-label">Next 3 days</div>
+  <div class="pollen-fc-forecast" id="pollen-fc-forecast"></div>
+  <div class="pollen-fc-expand" id="pollen-fc-toggle">
+    <span>Details by species</span>
+    <span class="pollen-arrow" id="pollen-fc-arrow">›</span>
+  </div>
+  <div class="pollen-details hidden" id="pollen-fc-details"></div>
+</section>
+    
     <!-- NEXT RAIN -->
     <section class="card next-card">
       <div class="card-label">Next Rain</div>
@@ -223,6 +241,7 @@ async function init() {
   const [weather, airQuality] = await Promise.all([fetchWeather(), fetchAirQuality()]);
   if (weather) renderWeather(weather);
   if (airQuality) renderAirQuality(airQuality);
+  if (airQuality) renderPollenCard(airQuality);
   if (ATMO_USER && ATMO_PASS) fetchAtmo();
   else document.getElementById("atmo-note").textContent = "Set ATMO_USER & ATMO_PASS in index.html to enable.";
 }
@@ -413,6 +432,95 @@ function renderAirQuality(d) {
   document.getElementById("pollen-toggle").addEventListener("click", () => {
     detailsEl.classList.toggle("hidden");
     document.getElementById("pollen-arrow").classList.toggle("open");
+  });
+}
+  function renderPollenCard(d) {
+  const pollenKeys = [
+    { key: "olive_pollen", label: "Olive" },
+    { key: "grass_pollen", label: "Grass" },
+    { key: "birch_pollen", label: "Birch" },
+    { key: "alder_pollen", label: "Alder" },
+    { key: "mugwort_pollen", label: "Mugwort" },
+    { key: "ragweed_pollen", label: "Ragweed" }
+  ];
+  const hours = d.hourly.time;
+  const now = new Date();
+
+  // Find current hour index
+  let nowIdx = 0;
+  for (let i = 0; i < hours.length; i++) {
+    if (new Date(hours[i]) >= now) { nowIdx = i; break; }
+  }
+
+  // Current values
+  const current = pollenKeys.map(p => ({
+    label: p.label,
+    value: d.hourly[p.key] ? (d.hourly[p.key][nowIdx] || 0) : 0
+  })).sort((a, b) => b.value - a.value);
+
+  const maxNow = Math.max(...current.map(p => p.value));
+  const badge = document.getElementById("pollen-fc-badge");
+  const icon = maxNow <= 5 ? "🟢" : maxNow <= 20 ? "🟡" : maxNow <= 50 ? "🟠" : "🔴";
+  badge.textContent = icon;
+  document.getElementById("pollen-fc-level").textContent = pollenLabel(maxNow);
+
+  // Today's top 3
+  const todayEl = document.getElementById("pollen-fc-today");
+  const top3 = current.filter(p => p.value > 0).slice(0, 3);
+  if (top3.length === 0) {
+    todayEl.innerHTML = '<div class="pollen-fc-calm">No significant pollen detected right now</div>';
+  } else {
+    todayEl.innerHTML = top3.map(p => {
+      const cls = pollenRAG(p.value);
+      return `<div class="pollutant-row"><span class="dot ${cls}"></span><span class="pollutant-name">${p.label}</span><span class="pollutant-val">${Math.round(p.value)} grains/m³</span></div>`;
+    }).join("");
+  }
+
+  // Daily max for next 3 days
+  const forecastEl = document.getElementById("pollen-fc-forecast");
+  const todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+  let days = [];
+  for (let dayOff = 1; dayOff <= 3; dayOff++) {
+    const dayStart = new Date(todayStart); dayStart.setDate(dayStart.getDate() + dayOff);
+    const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+    let dayMax = 0;
+    let species = pollenKeys.map(p => {
+      let max = 0;
+      for (let i = 0; i < hours.length; i++) {
+        const t = new Date(hours[i]);
+        if (t >= dayStart && t < dayEnd && d.hourly[p.key] && d.hourly[p.key][i] > max) {
+          max = d.hourly[p.key][i];
+        }
+      }
+      if (max > dayMax) dayMax = max;
+      return { label: p.label, value: max };
+    }).sort((a, b) => b.value - a.value);
+    const dayLabel = dayStart.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
+    days.push({ dayLabel, dayMax, species });
+  }
+
+  forecastEl.innerHTML = days.map(day => {
+    const cls = pollenRAG(day.dayMax);
+    const lvl = pollenLabel(day.dayMax);
+    const topSpecies = day.species.filter(s => s.value > 0).slice(0, 2).map(s => s.label).join(", ");
+    return `<div class="pollen-fc-day">
+      <span class="pollen-fc-day-name">${day.dayLabel}</span>
+      <span class="dot ${cls}"></span>
+      <span class="pollen-fc-day-level">${lvl}</span>
+      <span class="pollen-fc-day-species">${topSpecies || "—"}</span>
+    </div>`;
+  }).join("");
+
+  // Expandable details: all species current values
+  const detailsEl = document.getElementById("pollen-fc-details");
+  detailsEl.innerHTML = current.map(p => {
+    const cls = pollenRAG(p.value);
+    return `<div class="pollutant-row"><span class="dot ${cls}"></span><span class="pollutant-name">${p.label}</span><span class="pollutant-val">${Math.round(p.value)} grains/m³</span></div>`;
+  }).join("");
+
+  document.getElementById("pollen-fc-toggle").addEventListener("click", () => {
+    detailsEl.classList.toggle("hidden");
+    document.getElementById("pollen-fc-arrow").classList.toggle("open");
   });
 }
 
