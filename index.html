@@ -66,7 +66,7 @@
     </section>
 
     <!-- AIR QUALITY - ATMO FRANCE -->
-    <section class="card aq-card atmo-card" style="display:none;">
+    <section class="card aq-card atmo-card">
       <div class="card-label">Air Quality <span class="src">Atmo France</span></div>
       <div class="aqi-header">
         <span class="aqi-badge" id="atmo-badge">—</span>
@@ -104,7 +104,7 @@
 
     <!-- POLLEN FORECAST -->
 <section class="card pollen-card">
-  <div class="card-label">Pollen <span class="src">Open-Meteo</span></div>
+  <div class="card-label">Pollen <span class="src">Atmo France</span></div>
   <div class="pollen-fc-header">
     <span class="pollen-fc-badge" id="pollen-fc-badge">—</span>
     <span class="pollen-fc-label" id="pollen-fc-level">—</span>
@@ -149,12 +149,8 @@
 const LAT = 43.5297, LON = 5.4474;
 const CITY_INSEE = "13001"; // Aix-en-Provence
 
-// Atmo France credentials — replace with yours after creating an account
-const ATMO_USER = "";
-const ATMO_PASS = "";
-
 // Wind thresholds (km/h gusts)
-const WIND_UNCOMFORTABLE = 50;
+const WIND_UNCOMFORTABLE = 40;
 const WIND_STRONG = 70;
 const WIND_VIOLENT = 90;
 
@@ -241,9 +237,8 @@ async function init() {
   const [weather, airQuality] = await Promise.all([fetchWeather(), fetchAirQuality()]);
   if (weather) renderWeather(weather);
   if (airQuality) renderAirQuality(airQuality);
-  if (airQuality) renderPollenCard(airQuality);
-  if (ATMO_USER && ATMO_PASS) fetchAtmo();
-  else document.getElementById("atmo-note").textContent = "Set ATMO_USER & ATMO_PASS in index.html to enable.";
+  fetchWfsPollen();
+  fetchAtmo();
 }
 
 async function fetchWeather() {
@@ -264,27 +259,79 @@ async function fetchAirQuality() {
 
 async function fetchAtmo() {
   try {
-    // Login
-    const lr = await fetch("https://admindata.atmo-france.org/api/login", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: ATMO_USER, password: ATMO_PASS })
-    });
-    const ld = await lr.json();
-    const token = ld.token;
-    if (!token) { document.getElementById("atmo-note").textContent = "Login failed — check credentials."; return; }
-
-    // Fetch today's ATMO index
-    const today = new Date().toISOString().slice(0, 10);
-    const filter = JSON.stringify({ code_zone: { operator: "=", value: CITY_INSEE }, date_ech: { operator: "=", value: today } });
-    const dr = await fetch(`https://admindata.atmo-france.org/api/data/112/${encodeURIComponent(filter)}?withGeom=false`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const dd = await dr.json();
-    renderAtmo(dd);
+    const url = 'https://data.atmo-france.org/geoserver/ind/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=ind:ind_atmo_2021&outputFormat=application/json&CQL_FILTER=code_zone=%2713001%27';
+    const r = await fetch(url);
+    const d = await r.json()
+    if (d.features && d.features.length) renderAtmo(d.features);
+    else document.getElementById("atmo-note").textContent = "No data available yet (published 13h).";
   } catch (e) {
-    console.error("Atmo France error:", e);
-    document.getElementById("atmo-note").textContent = "Could not reach Atmo France API (may be a CORS issue).";
+    console.error("Atmo France WFS error:", e);
+    document.getElementById("atmo-note").textContent = "Could not reach Atmo France (may be a CORS issue).";
   }
+}
+  async function fetchWfsPollen() {
+  try {
+    const url = `https://data.atmo-france.org/geoserver/ind_pol/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=ind_pol:ind_national_pol&outputFormat=application/json&CQL_FILTER=code_zone=%2713001%27`;
+    const r = await fetch(url);
+    const d = await r.json();
+    if (d.features && d.features.length) renderWfsPollen(d.features);
+  } catch (e) {
+    console.error("Pollen WFS error:", e);
+  }
+}
+
+function renderWfsPollen(features) {
+  // Sort by date
+  features.sort((a, b) => a.properties.date_ech.localeCompare(b.properties.date_ech));
+  const today = new Date().toISOString().slice(0, 10);
+  const todayFeat = features.find(f => f.properties.date_ech === today) || features[0];
+  const d = todayFeat.properties;
+
+  // Update the pollen card header with official data
+  const badge = document.getElementById("pollen-fc-badge");
+  const lvl = atmoLevel(d.code_qual);
+  const icons = { 1: "🟢", 2: "🟡", 3: "🟠", 4: "🔴", 5: "🔴", 6: "🟣" };
+  badge.textContent = icons[d.code_qual] || "⚪";
+  document.getElementById("pollen-fc-level").textContent = d.lib_qual + " — " + d.pollen_resp.toLowerCase();
+
+  // Today's species from WFS (real concentrations)
+  const species = [
+    { label: "Grasses", code: d.code_gram, conc: d.conc_gram },
+    { label: "Birch", code: d.code_boul, conc: d.conc_boul },
+    { label: "Alder", code: d.code_aul, conc: d.conc_aul },
+    { label: "Olive", code: d.code_oliv, conc: d.conc_oliv },
+    { label: "Mugwort", code: d.code_arm, conc: d.conc_arm },
+    { label: "Ragweed", code: d.code_ambr, conc: d.conc_ambr }
+  ].sort((a, b) => b.conc - a.conc);
+
+  const todayEl = document.getElementById("pollen-fc-today");
+  todayEl.innerHTML = species.map(s => {
+    const cls = atmoLevel(s.code).cls;
+    return `<div class="pollutant-row"><span class="dot ${cls}"></span><span class="pollutant-name">${s.label}</span><span class="pollutant-val">${s.conc} gr/m³</span></div>`;
+  }).join("");
+
+  // Forecast days
+  const forecastEl = document.getElementById("pollen-fc-forecast");
+  forecastEl.innerHTML = features.map(f => {
+    const p = f.properties;
+    const dt = new Date(p.date_ech);
+    const dayLabel = dt.toLocaleDateString("en-GB", { weekday: "short", day: "numeric" });
+    const cls = atmoLevel(p.code_qual).cls;
+    const isToday = p.date_ech === today;
+    return `<div class="pollen-fc-day">
+      <span class="pollen-fc-day-name">${isToday ? "Today" : dayLabel}</span>
+      <span class="dot ${cls}"></span>
+      <span class="pollen-fc-day-level">${p.lib_qual}</span>
+      <span class="pollen-fc-day-species">${p.pollen_resp.toLowerCase()}</span>
+    </div>`;
+  }).join("");
+
+  // Details section
+  const detailsEl = document.getElementById("pollen-fc-details");
+  detailsEl.innerHTML = species.map(s => {
+    const cls = atmoLevel(s.code).cls;
+    return `<div class="pollutant-row"><span class="dot ${cls}"></span><span class="pollutant-name">${s.label}</span><span class="pollutant-val">${s.conc} gr/m³</span></div>`;
+  }).join("");
 }
 
 // ============ RENDER WEATHER ============
@@ -525,18 +572,19 @@ function renderAirQuality(d) {
 }
 
 // ============ RENDER ATMO FRANCE ============
-function renderAtmo(data) {
-  if (!data || !data.length) {
-    document.getElementById("atmo-note").textContent = "No data available for today yet (published ~13h).";
-    return;
-  }
-  const d = data[0].properties || data[0];
+function renderAtmo(features) {
+  // Find today's record (or the most recent)
+  const today = new Date().toISOString().slice(0, 10);
+  let feat = features.find(f => f.properties.date_ech === today);
+  if (!feat) feat = features[0];
+  const d = feat.properties;
+
   const qual = d.code_qual || 0;
   const lvl = atmoLevel(qual);
   const badge = document.getElementById("atmo-badge");
   badge.textContent = qual;
   badge.className = "aqi-badge " + lvl.cls;
-  document.getElementById("atmo-label").textContent = lvl.label;
+  document.getElementById("atmo-label").textContent = d.lib_qual || lvl.label;
 
   const subs = [
     { key: "code_no2", label: "NO₂" },
@@ -548,9 +596,11 @@ function renderAtmo(data) {
   const container = document.getElementById("atmo-pollutants");
   container.innerHTML = subs.map(s => {
     const v = d[s.key] || 0;
-    const lvl = atmoLevel(v);
-    return `<div class="pollutant-row"><span class="dot ${lvl.cls}"></span><span class="pollutant-name">${s.label}</span><span class="pollutant-val">${lvl.label}</span></div>`;
+    const l = atmoLevel(v);
+    return `<div class="pollutant-row"><span class="dot ${l.cls}"></span><span class="pollutant-name">${s.label}</span><span class="pollutant-val">${l.label}</span></div>`;
   }).join("");
+
+  document.getElementById("atmo-note").textContent = `Source: ${d.source} · ${d.date_ech}`;
 }
 
 init();
